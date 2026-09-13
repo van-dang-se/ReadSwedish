@@ -66,34 +66,11 @@
         img.src=url;
       });
     }
-    function fetchWithTimeout(url, options={}, timeoutMs=20000){
-      const controller=new AbortController();
-      const timeoutId=setTimeout(()=>controller.abort(), timeoutMs);
-      return fetch(url,{...options, signal:controller.signal})
-        .finally(()=>clearTimeout(timeoutId));
-    }
     async function extractTextFromImage(file){
-      const formData=new FormData();
-      formData.append('file', file, file.name||'upload.png');
-      status.textContent='Läser text med AI…';
-      try{
-        const response=await fetchWithTimeout('/api/extract-text', {method:'POST', body: formData}, 20000);
-        const data=await response.json();
-        if(!response.ok || !data.text){
-          throw new Error(data.error || 'No text returned');
-        }
-        return data.text;
-      }catch(error){
-        status.textContent='AI-kall misslyckades. Provar lokal OCR istället…';
-        await ensureOcrLoaded();
-        const processedFile=await preprocessImageFile(file);
-        const {data}=await Tesseract.recognize(processedFile,'swe',{logger:message=>{if(message.status==='recognizing text'){status.textContent=`Läser text från bilden… ${Math.round(message.progress*100)}%`;}}});
-        const fallbackText=(data.text||'').trim();
-        if(!fallbackText){
-          throw new Error('No OCR text found');
-        }
-        return fallbackText;
-      }
+      await ensureOcrLoaded();
+      const processedFile=await preprocessImageFile(file);
+      const {data}=await Tesseract.recognize(processedFile,'swe',{logger:message=>{if(message.status==='recognizing text'){status.textContent=`Läser text från bilden… ${Math.round(message.progress*100)}%`;}}});
+      return data.text||'';
     }
     async function captureFromCamera(){
       if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
@@ -103,10 +80,7 @@
       }
       try{
         status.textContent='Öppnar kameran…';
-        const stream=await Promise.race([
-          navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false}),
-          new Promise((_, reject)=>setTimeout(()=>reject(new Error('Camera access timed out')), 15000))
-        ]);
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
         cameraVideo.srcObject=stream;
         await cameraVideo.play();
         const width=cameraVideo.videoWidth||1280;
@@ -121,9 +95,7 @@
         const text=await extractTextFromImage(file);
         applyExtractedText(text);
       }catch(error){
-        status.textContent='Kameran kunde inte öppnas eller svarade för sent. Försök med bild från galleriet istället.';
-        imageInput.setAttribute('capture','environment');
-        imageInput.click();
+        status.textContent='Kameran kunde inte öppnas. Försök igen eller välj en bild från galleriet.';
       }
     }
     photoButton.addEventListener('click',()=>{
