@@ -66,34 +66,11 @@
         img.src=url;
       });
     }
-    function fetchWithTimeout(url, options={}, timeoutMs=25000){
-      const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(), timeoutMs);
-      return fetch(url,{...options, signal:controller.signal})
-        .finally(()=>clearTimeout(timer));
-    }
     async function extractTextFromImage(file){
-      const formData=new FormData();
-      formData.append('file', file, file.name||'upload.png');
-      status.textContent='Läser text med Gemini…';
-      try{
-        const response=await fetchWithTimeout('/api/extract-text', {method:'POST', body: formData}, 25000);
-        const data=await response.json();
-        if(!response.ok || !data.text){
-          throw new Error(data.error || 'No text returned');
-        }
-        return data.text.trim();
-      }catch(error){
-        status.textContent='Gemini svarade inte, använder lokal OCR istället…';
-        await ensureOcrLoaded();
-        const processedFile=await preprocessImageFile(file);
-        const {data}=await Tesseract.recognize(processedFile,'swe',{logger:message=>{if(message.status==='recognizing text'){status.textContent=`Läser text från bilden… ${Math.round(message.progress*100)}%`;}}});
-        const fallbackText=(data.text||'').trim();
-        if(!fallbackText){
-          throw new Error('No OCR text found');
-        }
-        return fallbackText;
-      }
+      await ensureOcrLoaded();
+      const processedFile=await preprocessImageFile(file);
+      const {data}=await Tesseract.recognize(processedFile,'swe',{logger:message=>{if(message.status==='recognizing text'){status.textContent=`Läser text från bilden… ${Math.round(message.progress*100)}%`;}}});
+      return data.text||'';
     }
     async function captureFromCamera(){
       if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
