@@ -16,7 +16,7 @@
   <main class="shell">
     <header class="masthead"><div><p class="eyebrow">Läs svenska, lite i taget</p><h1>Från text till förståelse.</h1><p class="intro">Översätt din svenska rad för rad och plocka upp orden som är värda att bära med sig.</p></div><div class="mark" aria-hidden="true">Å</div></header>
     <section class="workspace" aria-label="Översättningsverktyg">
-      <div class="input-panel"><label class="panel-label" for="inputText"><span>Din svenska text</span><span id="charCount">0 tecken</span></label><textarea id="inputText" placeholder="Klistra in en svensk text här..." spellcheck="true"></textarea><div class="image-tools"><div class="upload-control"><input id="imageInput" type="file" accept="image/*" capture="environment" aria-label="Lägg till bild eller ta foto"><button class="secondary upload-btn" id="photoButton" type="button">Ta foto</button></div><button class="secondary" id="clearButton" type="button">Rensa</button></div><video id="cameraVideo" class="camera-hidden" playsinline muted autoplay></video><canvas id="cameraCanvas" class="camera-hidden"></canvas><div class="actions"><button class="primary" id="processButton" type="button">Översätt & hitta ord</button><button class="secondary" id="speakAllButton" type="button">Läs upp texten</button></div><p id="status" role="status" aria-live="polite"></p></div>
+      <div class="input-panel"><label class="panel-label" for="inputText"><span>Din svenska text</span><span id="charCount">0 tecken</span></label><textarea id="inputText" placeholder="Klistra in en svensk text här..." spellcheck="true"></textarea><div class="image-tools"><div class="upload-control"><input id="imageInput" type="file" accept="image/*" capture="environment" aria-label="Välj bild"><button class="secondary upload-btn" id="photoButton" type="button">Välj bild</button></div><button class="secondary" id="clearButton" type="button">Rensa</button></div><video id="cameraVideo" class="camera-hidden" playsinline muted autoplay></video><canvas id="cameraCanvas" class="camera-hidden"></canvas><div class="actions"><button class="primary" id="processButton" type="button">Översätt & hitta ord</button><button class="secondary" id="speakAllButton" type="button">Läs upp texten</button></div><p id="status" role="status" aria-live="polite"></p></div>
       <section class="results-panel" aria-labelledby="translationHeading"><div class="panel-label"><span id="translationHeading">Översättning</span><span id="lineCount"></span></div><div id="results"><div class="empty"><strong>Din översättning hamnar här.</strong>Varje rad får sin engelska motsvarighet och ett uttal du kan lyssna på.</div></div></section>
     </section>
     <section id="vocab-section" hidden aria-labelledby="vocabHeading"><div class="section-heading"><h2 id="vocabHeading">Nya ord</h2><span>De längsta orden i texten</span></div><div id="vocab-list" class="vocab-list"></div></section>
@@ -100,7 +100,8 @@
     }
     photoButton.addEventListener('click',()=>{
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        captureFromCamera();
+        imageInput.setAttribute('capture','environment');
+        imageInput.click();
       } else {
         imageInput.removeAttribute('capture');
         imageInput.click();
