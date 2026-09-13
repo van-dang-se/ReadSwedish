@@ -16,19 +16,74 @@
   <main class="shell">
     <header class="masthead"><div><p class="eyebrow">Läs svenska, lite i taget</p><h1>Från text till förståelse.</h1><p class="intro">Översätt din svenska rad för rad och plocka upp orden som är värda att bära med sig.</p></div><div class="mark" aria-hidden="true">Å</div></header>
     <section class="workspace" aria-label="Översättningsverktyg">
-      <div class="input-panel"><label class="panel-label" for="inputText"><span>Din svenska text</span><span id="charCount">0 tecken</span></label><textarea id="inputText" placeholder="Klistra in en svensk text här..." spellcheck="true"></textarea><div class="image-tools"><div class="upload-control"><input id="imageInput" type="file" accept="image/*" capture="environment" aria-label="Lägg till bild eller ta foto"><button class="secondary upload-btn" id="photoButton" type="button">Ta foto</button></div><button class="secondary" id="galleryButton" type="button">Välj bild</button><button class="secondary" id="clearButton" type="button">Rensa</button></div><video id="cameraVideo" class="camera-hidden" playsinline muted autoplay></video><canvas id="cameraCanvas" class="camera-hidden"></canvas><div class="actions"><button class="primary" id="processButton" type="button">Översätt & hitta ord</button><button class="secondary" id="speakAllButton" type="button">Läs upp texten</button></div><p id="status" role="status" aria-live="polite"></p></div>
+      <div class="input-panel"><label class="panel-label" for="inputText"><span>Din svenska text</span><span id="charCount">0 tecken</span></label><textarea id="inputText" placeholder="Klistra in en svensk text här..." spellcheck="true"></textarea><div class="image-tools"><div class="upload-control"><input id="imageInput" type="file" accept="image/*" capture="environment" aria-label="Lägg till bild eller ta foto"><button class="secondary upload-btn" id="photoButton" type="button">Ta foto</button></div><button class="secondary" id="clearButton" type="button">Rensa</button></div><video id="cameraVideo" class="camera-hidden" playsinline muted autoplay></video><canvas id="cameraCanvas" class="camera-hidden"></canvas><div class="actions"><button class="primary" id="processButton" type="button">Översätt & hitta ord</button><button class="secondary" id="speakAllButton" type="button">Läs upp texten</button></div><p id="status" role="status" aria-live="polite"></p></div>
       <section class="results-panel" aria-labelledby="translationHeading"><div class="panel-label"><span id="translationHeading">Översättning</span><span id="lineCount"></span></div><div id="results"><div class="empty"><strong>Din översättning hamnar här.</strong>Varje rad får sin engelska motsvarighet och ett uttal du kan lyssna på.</div></div></section>
     </section>
     <section id="vocab-section" hidden aria-labelledby="vocabHeading"><div class="section-heading"><h2 id="vocabHeading">Nya ord</h2><span>De längsta orden i texten</span></div><div id="vocab-list" class="vocab-list"></div></section>
   </main>
   <script>
     const STOP_WORDS=new Set('och i att en ett som det på med för av till är var har men om inte den de ska kan eller nu så min din sin hans hennes deras vår er man vad hur när där här vem vilken vilket vilka sig dem oss mig dig han hon vi ni du också efter under över mot från utan bara blir blev skulle hade alla andra varit många mycket varje dessa detta'.split(' '));
-    const input=document.getElementById('inputText'),status=document.getElementById('status'),processButton=document.getElementById('processButton'),vocabSection=document.getElementById('vocab-section'),imageInput=document.getElementById('imageInput'),photoButton=document.getElementById('photoButton'),galleryButton=document.getElementById('galleryButton'),clearButton=document.getElementById('clearButton'),cameraVideo=document.getElementById('cameraVideo'),cameraCanvas=document.getElementById('cameraCanvas');
+    const input=document.getElementById('inputText'),status=document.getElementById('status'),processButton=document.getElementById('processButton'),vocabSection=document.getElementById('vocab-section'),imageInput=document.getElementById('imageInput'),photoButton=document.getElementById('photoButton'),clearButton=document.getElementById('clearButton'),cameraVideo=document.getElementById('cameraVideo'),cameraCanvas=document.getElementById('cameraCanvas');
     let ocrReady=false;
     input.addEventListener('input',()=>document.getElementById('charCount').textContent=`${input.value.length} tecken`);
     async function ensureOcrLoaded(){if(window.Tesseract){ocrReady=true;return}status.textContent='Laddar OCR-funktion för bilder...';await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';script.onload=()=>{ocrReady=true;resolve();};script.onerror=()=>reject(new Error('Kunde inte ladda OCR-biblioteket.'));document.head.appendChild(script);});}
     function applyExtractedText(text){const trimmed=text.trim();if(!trimmed){status.textContent='Ingen text hittades i bilden.';return}const previous=input.value.trim();input.value=previous?`${previous}\n\n${trimmed}`:trimmed;input.dispatchEvent(new Event('input'));status.textContent='Text från bilden har lagts in i fältet. Klicka på "Översätt & hitta ord" när du är redo.';}
-    async function extractTextFromImage(file){await ensureOcrLoaded();const {data}=await Tesseract.recognize(file,'swe',{logger:message=>{if(message.status==='recognizing text'){status.textContent=`Läser text från bilden… ${Math.round(message.progress*100)}%`;}}});return data.text||'';}
+    function preprocessImageFile(file){
+      return new Promise((resolve,reject)=>{
+        const img=new Image();
+        const url=URL.createObjectURL(file);
+        img.onload=()=>{
+          try{
+            const canvas=document.createElement('canvas');
+            const ctx=canvas.getContext('2d');
+            const maxSide=1800;
+            const scale=Math.min(1, maxSide/Math.max(img.width,img.height));
+            canvas.width=Math.max(1,Math.round(img.width*scale));
+            canvas.height=Math.max(1,Math.round(img.height*scale));
+            ctx.filter='contrast(1.4) saturate(1.1) brightness(1.08)';
+            ctx.drawImage(img,0,0,canvas.width,canvas.height);
+            const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+            const data=imageData.data;
+            for(let i=0;i<data.length;i+=4){
+              const r=data[i],g=data[i+1],b=data[i+2];
+              const gray=0.299*r+0.587*g+0.114*b;
+              let value=gray;
+              if(value<120){value=0;}else if(value>200){value=255;}else{value=Math.round((gray-120)/80*255);} 
+              data[i]=data[i+1]=data[i+2]=value;
+            }
+            ctx.putImageData(imageData,0,0);
+            canvas.toBlob(blob=>{
+              URL.revokeObjectURL(url);
+              if(blob){resolve(new File([blob], file.name || 'processed-image.png', {type:'image/png'}));}
+              else{reject(new Error('Image preprocessing failed'));}
+            },'image/png',0.92);
+          }catch(error){
+            URL.revokeObjectURL(url);
+            reject(error);
+          }
+        };
+        img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Image load failed'));};
+        img.src=url;
+      });
+    }
+    async function extractTextFromImage(file){
+      const formData=new FormData();
+      formData.append('file', file, file.name||'upload.png');
+      status.textContent='Läser text med AI…';
+      try{
+        const response=await fetch('/api/extract-text', {method:'POST', body: formData});
+        const data=await response.json();
+        if(!response.ok || !data.text){
+          throw new Error(data.error || 'No text returned');
+        }
+        return data.text;
+      }catch(error){
+        await ensureOcrLoaded();
+        const processedFile=await preprocessImageFile(file);
+        const {data}=await Tesseract.recognize(processedFile,'swe',{logger:message=>{if(message.status==='recognizing text'){status.textContent=`Läser text från bilden… ${Math.round(message.progress*100)}%`;}}});
+        return data.text||'';
+      }
+    }
     async function captureFromCamera(){
       if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
         imageInput.setAttribute('capture','environment');
@@ -55,8 +110,14 @@
         status.textContent='Kameran kunde inte öppnas. Försök igen eller välj en bild från galleriet.';
       }
     }
-    photoButton.addEventListener('click',captureFromCamera);
-    galleryButton.addEventListener('click',()=>{imageInput.removeAttribute('capture');imageInput.click();});
+    photoButton.addEventListener('click',()=>{
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        captureFromCamera();
+      } else {
+        imageInput.removeAttribute('capture');
+        imageInput.click();
+      }
+    });
     clearButton.addEventListener('click',()=>{input.value='';input.dispatchEvent(new Event('input'));imageInput.value='';imageInput.removeAttribute('capture');status.textContent='Textfältet har rensats.';});
     imageInput.addEventListener('change',async(event)=>{
       const file=event.target.files&&event.target.files[0];
